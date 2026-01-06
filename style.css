@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* --- :root selectors for light and dark themes --- */
+:root {
+    --primary-color: #4A934A; /* Verde floral principal */
+    --secondary-color: #FFB347; /* Naranja floral secundario */
+    --accent-color: #FF6F61; /* Coral para acentos y alertas */
+    --background-color: #F9F9F9; /* Fondo muy claro, casi blanco */
+    --surface-color: #FFFFFF; /* Color de las superficies como tarjetas y modales */
+    --text-color: #333333; /* Color de texto principal */
+    --subtle-text-color: #555555; /* Color para texto secundario o captions */
+    --border-color: #E0E0E0; /* Color de bordes sutiles */
+    --border-radius: 0.75rem;
+    --box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+[data-theme="dark"] {
+    --primary-color: #6a8a65; /* Verde floral más suave para modo oscuro */
+    --secondary-color: #d89b4f; /* Naranja floral más suave para modo oscuro */
+    --accent-color: #d16b60; /* Coral más suave */
+    --background-color: #121212; /* Fondo oscuro principal */
+    --surface-color: #1E1E1E; /* Superficies ligeramente más claras que el fondo */
+    --text-color: #EAEAEA; /* Texto claro */
+    --subtle-text-color: #AAAAAA; /* Texto secundario claro */
+    --border-color: #333333; /* Bordes oscuros */
+}
+
+/* --- Estilos Generales --- */
+body, .stApp {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* --- Título Principal --- */
+.main-header {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+/* --- Sidebar --- */
+.st-emotion-cache-16txtl3 {
+    background-color: var(--surface-color);
+    border-right: 1px solid var(--border-color);
+}
+.st-emotion-cache-16txtl3 .stButton > button {
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+/* --- Métricas del Dashboard --- */
+.stMetric {
+    background-color: var(--surface-color);
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    border-left: 5px solid var(--primary-color);
+}
+
+/* --- Contenedores y Expanders --- */
+.stExpander, .st-emotion-cache-1r6slb0 {
+    background-color: var(--surface-color);
+    border-radius: var(--border-radius) !important;
+    border: 1px solid var(--border-color) !important;
+    box-shadow: none !important;
+    margin-bottom: 1rem;
+}
+.st-emotion-cache-1r6slb0 p {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+/* --- Botones --- */
+.stButton > button {
+    border-radius: var(--border-radius);
+    padding: 10px 22px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: none;
+}
+.stButton > button[kind="primary"] {
+    background-color: var(--primary-color);
+    color: white;
+}
+.stButton > button[kind="primary"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(74, 147, 74, 0.4);
+}
+.stButton > button[kind="secondary"] {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+/* --- Formularios y Entradas de Texto --- */
+.st-emotion-cache-s492s5 { /* Contenedor de formulario */
+    background-color: var(--surface-color);
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
