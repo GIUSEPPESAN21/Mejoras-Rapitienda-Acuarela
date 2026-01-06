@@ -120,6 +120,12 @@ class FirebaseManager:
         }
         doc_ref.collection('history').add(history_data)
         logger.info(f"Inventory item saved/updated: {custom_id}")
+    
+    # --- NUEVA FUNCIÓN PARA ELIMINAR ---
+    @firestore_retry
+    def delete_inventory_item(self, doc_id):
+        self.db.collection('inventory').document(doc_id).delete()
+        logger.info(f"Inventory item deleted: {doc_id}")
 
     @firestore_retry
     def get_inventory_item_details(self, doc_id):
@@ -216,4 +222,3 @@ class FirebaseManager:
     def get_all_suppliers(self):
         docs = self.db.collection('suppliers').stream()
         return sorted([dict(s.to_dict(), **{'id': s.id}) for s in docs], key=lambda x: x.get('name', '').lower())
-
