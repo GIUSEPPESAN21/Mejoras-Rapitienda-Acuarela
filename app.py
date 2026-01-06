@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 HI-DRIVE: Sistema Avanzado de Gestión de Inventario con IA
-Versión 2.8.3 - Rapi Tienda Acuarela (Fix: Delete Dialog Optimized)
+Versión 2.8.4 - Rapi Tienda Acuarela (Fix: Smart Form Reset)
 """
 import streamlit as st
 from PIL import Image
@@ -76,8 +76,11 @@ def init_session_state():
     defaults = {
         'page': "🏠 Inicio", 'order_items': [],
         'editing_item_id': None, 'scanned_item_data': None,
-        'usb_scan_result': None, 'usb_sale_items': []
-        # 'delete_confirm_id' YA NO ES NECESARIO gracias a st.dialog
+        'usb_scan_result': None, 'usb_sale_items': [],
+        # Variables para el formulario de añadir manual (limpieza controlada)
+        'new_item_id': "", 'new_item_name': "", 
+        'new_item_qty': 1, 'new_item_purchase': 0.0, 
+        'new_item_sale': 0.0, 'new_item_alert': 0
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -85,7 +88,7 @@ def init_session_state():
 
 init_session_state()
 
-# --- DIÁLOGOS DE INTERFAZ (OPTIMIZACIÓN UX) ---
+# --- DIÁLOGOS DE INTERFAZ ---
 @st.dialog("⚠️ Confirmar Eliminación")
 def show_delete_confirmation(item_id, item_name):
     st.write(f"¿Estás seguro que deseas eliminar permanentemente el producto **{item_name}**?")
@@ -450,7 +453,6 @@ elif st.session_state.page == "📦 Inventario":
                     for item in filtered_items:
                         item_id = item.get('id', 'N/A')
                         with st.container(border=True):
-                            # --- COLUMNAS AJUSTADAS ---
                             c1, c2, c3, c4, c5 = st.columns([4, 2, 2, 1, 1])
                             c1.markdown(f"**{item.get('name', 'N/A')}**")
                             c1.caption(f"ID: {item_id}")
@@ -461,7 +463,6 @@ elif st.session_state.page == "📦 Inventario":
                                 st.session_state.editing_item_id = item_id
                                 st.rerun()
                             
-                            # --- BOTÓN DE ELIMINAR OPTIMIZADO CON DIÁLOGO ---
                             if c5.button("🗑️", key=f"del_{item_id}", help="Eliminar permanentemente"):
                                 show_delete_confirmation(item_id, item.get('name', 'Producto'))
 
@@ -475,13 +476,16 @@ elif st.session_state.page == "📦 Inventario":
                 supplier_map = {s.get('name', f"ID: {s.get('id')}"): s.get('id') for s in suppliers}
                 supplier_names = [""] + list(supplier_map.keys())
 
-                with st.form("add_item_form_new", clear_on_submit=True):
-                    custom_id = st.text_input("ID Personalizado (SKU)", help="Debe ser único")
-                    name = st.text_input("Nombre del Artículo")
-                    quantity = st.number_input("Cantidad Inicial", min_value=0, step=1, value=1)
-                    purchase_price = st.number_input("Costo de Compra ($)", min_value=0.0, format="%.2f", value=0.0)
-                    sale_price = st.number_input("Precio de Venta ($)", min_value=0.0, format="%.2f", value=0.0)
-                    min_stock_alert = st.number_input("Umbral de Alerta", min_value=0, step=1, value=0)
+                # --- CORRECCIÓN JOSH SAO: Limpieza Manual ---
+                # clear_on_submit=False para evitar borrado prematuro.
+                # Usamos st.session_state keys para persistencia y limpieza manual.
+                with st.form("add_item_form_new", clear_on_submit=False):
+                    custom_id = st.text_input("ID Personalizado (SKU)", key="new_item_id", help="Debe ser único")
+                    name = st.text_input("Nombre del Artículo", key="new_item_name")
+                    quantity = st.number_input("Cantidad Inicial", min_value=0, step=1, key="new_item_qty")
+                    purchase_price = st.number_input("Costo de Compra ($)", min_value=0.0, format="%.2f", key="new_item_purchase")
+                    sale_price = st.number_input("Precio de Venta ($)", min_value=0.0, format="%.2f", key="new_item_sale")
+                    min_stock_alert = st.number_input("Umbral de Alerta", min_value=0, step=1, key="new_item_alert")
                     selected_supplier_name = st.selectbox("Proveedor", supplier_names)
 
                     if st.form_submit_button("Guardar Nuevo Artículo", type="primary", width='stretch'):
@@ -502,11 +506,21 @@ elif st.session_state.page == "📦 Inventario":
                                 }
                                 try:
                                     firebase.save_inventory_item(data, custom_id, is_new=True)
-                                    st.success(f"Artículo '{name}' guardado con ID: {custom_id}. El formulario se limpiará automáticamente.")
+                                    st.success(f"Artículo '{name}' guardado con ID: {custom_id}.")
+                                    
+                                    # --- LIMPIEZA MANUAL AL GUARDAR CON ÉXITO ---
+                                    st.session_state.new_item_id = ""
+                                    st.session_state.new_item_name = ""
+                                    st.session_state.new_item_qty = 1
+                                    st.session_state.new_item_purchase = 0.0
+                                    st.session_state.new_item_sale = 0.0
+                                    st.session_state.new_item_alert = 0
+                                    st.rerun() # Recarga para mostrar campos limpios
                                 except Exception as add_e:
                                     st.error(f"Error al guardar el nuevo artículo: {add_e}")
                         else:
                             st.warning("El ID personalizado y el nombre del artículo son obligatorios.")
+                            # NOTA: Aquí NO borramos ni hacemos rerun, manteniendo los datos visibles.
             except Exception as sup_e:
                  st.error(f"Error al cargar proveedores: {sup_e}")
 
