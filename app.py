@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 HI-DRIVE: Sistema Avanzado de Gestión de Inventario con IA
-Versión 2.8 - Rebranding Rapi Tienda Acuarela
+Versión 2.8.1 - Rebranding Rapi Tienda Acuarela (Fix: Limpieza de Formulario)
 """
 import streamlit as st
 from PIL import Image
@@ -59,7 +59,8 @@ def initialize_services():
                 st.warning(f"No se pudo inicializar Twilio: {twilio_e}. Las notificaciones de WhatsApp estarán desactivadas.")
                 twilio_client = None 
         else:
-             st.warning("Faltan secretos de Twilio. Las notificaciones de WhatsApp estarán desactivadas.")
+             # Silencioso si no es crítico, o warning si se desea
+             pass
 
         return firebase_handler, gemini_handler, twilio_client, barcode_handler
     except Exception as e:
@@ -90,7 +91,7 @@ init_session_state()
 # --- LÓGICA DE NOTIFICACIONES ---
 def send_whatsapp_alert(message):
     if not twilio_client:
-        st.toast("Twilio no configurado o falló la inicialización. Alerta no enviada.", icon="⚠️")
+        # st.toast("Twilio no configurado. Alerta omitida.", icon="⚠️") # Opcional: comentar para menos ruido
         return
     try:
         from_number = st.secrets["TWILIO_WHATSAPP_FROM_NUMBER"]
@@ -101,7 +102,6 @@ def send_whatsapp_alert(message):
         st.error(f"Error al enviar alerta de Twilio: {e}", icon="🚨")
 
 # --- NAVEGACIÓN PRINCIPAL (SIDEBAR) ---
-# CAMBIO: Logo y Título actualizados para Rapi Tienda Acuarela
 col1, col2, col3 = st.sidebar.columns([1,6,1])
 with col2:
     st.image("https://github.com/GIUSEPPESAN21/LOGO-SAVA/blob/main/LOGO%20COLIBRI.png?raw=true", width=150)
@@ -129,7 +129,6 @@ for page_name, icon in PAGES.items():
         st.rerun()
 
 st.sidebar.markdown("---")
-# CAMBIO: Footer actualizado
 st.sidebar.markdown("<small>© 2025 SAVA & Rapi Tienda Acuarela. Todos los derechos reservados.</small>", unsafe_allow_html=True)
 
 
@@ -141,7 +140,6 @@ if st.session_state.page != "🏠 Inicio":
 
 # --- PÁGINAS ---
 if st.session_state.page == "🏠 Inicio":
-    # CAMBIO: Bienvenida actualizada con nueva imagen y textos
     col_img, col_title = st.columns([1, 5])
     with col_img:
         st.image("https://github.com/GIUSEPPESAN21/LOGO-SAVA/blob/main/LOGO%20COLIBRI.png?raw=true", width=130)
@@ -459,7 +457,10 @@ elif st.session_state.page == "📦 Inventario":
                 supplier_map = {s.get('name', f"ID: {s.get('id')}"): s.get('id') for s in suppliers}
                 supplier_names = [""] + list(supplier_map.keys())
 
-                with st.form("add_item_form_new"):
+                # --- CORRECCIÓN JOSH SAO: clear_on_submit=True ---
+                # Esto limpia el formulario automáticamente después de guardar,
+                # previniendo duplicados o datos cruzados en el siguiente escaneo.
+                with st.form("add_item_form_new", clear_on_submit=True):
                     custom_id = st.text_input("ID Personalizado (SKU)", help="Debe ser único")
                     name = st.text_input("Nombre del Artículo")
                     quantity = st.number_input("Cantidad Inicial", min_value=0, step=1, value=1)
@@ -486,7 +487,7 @@ elif st.session_state.page == "📦 Inventario":
                                 }
                                 try:
                                     firebase.save_inventory_item(data, custom_id, is_new=True)
-                                    st.success(f"Artículo '{name}' guardado con ID: {custom_id}.")
+                                    st.success(f"Artículo '{name}' guardado con ID: {custom_id}. El formulario se limpiará automáticamente.")
                                 except Exception as add_e:
                                     st.error(f"Error al guardar el nuevo artículo: {add_e}")
                         else:
@@ -982,4 +983,3 @@ elif st.session_state.page == "🏢 Acerca de SAVA":
         st.info("**Jaime Eduardo Aragon Campo**\n\n*Director de Operaciones*")
     with c3_cof:
         st.info("**Joseph Javier Sanchez Acuña**\n\n*Director de Proyecto*")
-
