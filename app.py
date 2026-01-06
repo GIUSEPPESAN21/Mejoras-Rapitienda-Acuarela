@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 HI-DRIVE: Sistema Avanzado de Gestión de Inventario con IA
-Versión 2.8.1 - Rebranding Rapi Tienda Acuarela (Fix: Limpieza de Formulario)
+Versión 2.8.2 - Rapi Tienda Acuarela (Fix: Limpieza Formulario USB + Borrado)
 """
 import streamlit as st
 from PIL import Image
@@ -79,7 +79,8 @@ def init_session_state():
     defaults = {
         'page': "🏠 Inicio", 'order_items': [],
         'editing_item_id': None, 'scanned_item_data': None,
-        'usb_scan_result': None, 'usb_sale_items': []
+        'usb_scan_result': None, 'usb_sale_items': [],
+        'delete_confirm_id': None # Para controlar la confirmación de borrado
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -91,7 +92,7 @@ init_session_state()
 # --- LÓGICA DE NOTIFICACIONES ---
 def send_whatsapp_alert(message):
     if not twilio_client:
-        # st.toast("Twilio no configurado. Alerta omitida.", icon="⚠️") # Opcional: comentar para menos ruido
+        # st.toast("Twilio no configurado. Alerta omitida.", icon="⚠️") 
         return
     try:
         from_number = st.secrets["TWILIO_WHATSAPP_FROM_NUMBER"]
@@ -126,6 +127,7 @@ for page_name, icon in PAGES.items():
         st.session_state.editing_item_id = None
         st.session_state.scanned_item_data = None
         st.session_state.usb_scan_result = None
+        st.session_state.delete_confirm_id = None # Reset delete confirm on nav
         st.rerun()
 
 st.sidebar.markdown("---")
@@ -265,7 +267,9 @@ elif st.session_state.page == "🛰️ Escáner USB":
                 barcode = result['barcode']
                 st.warning(f"⚠️ El código '{barcode}' no existe. Por favor, regístralo.")
 
-                with st.form("create_from_usb_scan_form"):
+                # --- CORRECCIÓN JOSH SAO: Agregado clear_on_submit=True AQUÍ ---
+                # Esto es crucial para el flujo de escaneo continuo.
+                with st.form("create_from_usb_scan_form", clear_on_submit=True):
                     st.markdown(f"**Código de Barras:** `{barcode}`")
                     name = st.text_input("Nombre del Producto")
                     quantity = st.number_input("Cantidad Inicial", min_value=1, step=1, value=1)
@@ -439,14 +443,45 @@ elif st.session_state.page == "📦 Inventario":
                     for item in filtered_items:
                         item_id = item.get('id', 'N/A')
                         with st.container(border=True):
-                            c1, c2, c3, c4 = st.columns([4, 2, 2, 1])
+                            # --- MODIFICADO: Añadido columna extra para botón Borrar ---
+                            c1, c2, c3, c4, c5 = st.columns([4, 2, 2, 1, 1])
                             c1.markdown(f"**{item.get('name', 'N/A')}**")
                             c1.caption(f"ID: {item_id}")
                             c2.metric("Stock", item.get('quantity', 0))
                             c3.metric("Precio Venta", f"${item.get('sale_price', 0):,.2f}")
+                            
                             if c4.button("✏️", key=f"edit_{item_id}", help="Editar este artículo"):
                                 st.session_state.editing_item_id = item_id
-                                st.rerun() 
+                                st.rerun()
+                            
+                            # --- BOTÓN DE ELIMINAR ---
+                            if c5.button("🗑️", key=f"del_{item_id}", help="Eliminar este artículo"):
+                                st.session_state.delete_confirm_id = item_id
+                                st.rerun()
+
+                    # --- ZONA DE CONFIRMACIÓN DE BORRADO ---
+                    if st.session_state.get('delete_confirm_id'):
+                        item_to_delete_id = st.session_state.delete_confirm_id
+                        # Buscar el nombre para mostrarlo
+                        item_name = next((i['name'] for i in items if i['id'] == item_to_delete_id), "Desconocido")
+                        
+                        st.warning(f"¿Estás seguro que deseas eliminar permanentemente: **{item_name}**?")
+                        col_del_1, col_del_2 = st.columns(2)
+                        
+                        if col_del_1.button("✅ SÍ, ELIMINAR", type="primary", use_container_width=True):
+                            try:
+                                firebase.delete_inventory_item(item_to_delete_id)
+                                st.success(f"Artículo '{item_name}' eliminado.")
+                                st.session_state.delete_confirm_id = None
+                                st.rerun()
+                            except Exception as del_e:
+                                st.error(f"Error al eliminar: {del_e}")
+                        
+                        if col_del_2.button("❌ NO, CANCELAR", use_container_width=True):
+                            st.session_state.delete_confirm_id = None
+                            st.rerun()
+
+
             except Exception as view_e:
                  st.error(f"Error al cargar el inventario: {view_e}")
 
@@ -457,9 +492,6 @@ elif st.session_state.page == "📦 Inventario":
                 supplier_map = {s.get('name', f"ID: {s.get('id')}"): s.get('id') for s in suppliers}
                 supplier_names = [""] + list(supplier_map.keys())
 
-                # --- CORRECCIÓN JOSH SAO: clear_on_submit=True ---
-                # Esto limpia el formulario automáticamente después de guardar,
-                # previniendo duplicados o datos cruzados en el siguiente escaneo.
                 with st.form("add_item_form_new", clear_on_submit=True):
                     custom_id = st.text_input("ID Personalizado (SKU)", help="Debe ser único")
                     name = st.text_input("Nombre del Artículo")
