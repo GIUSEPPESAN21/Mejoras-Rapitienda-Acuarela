@@ -121,11 +121,35 @@ class FirebaseManager:
         doc_ref.collection('history').add(history_data)
         logger.info(f"Inventory item saved/updated: {custom_id}")
     
-    # --- NUEVA FUNCIÓN PARA ELIMINAR ---
-    @firestore_retry
+    # --- FUNCIÓN DE ELIMINACIÓN OPTIMIZADA (Limpia historial) ---
     def delete_inventory_item(self, doc_id):
-        self.db.collection('inventory').document(doc_id).delete()
-        logger.info(f"Inventory item deleted: {doc_id}")
+        try:
+            doc_ref = self.db.collection('inventory').document(doc_id)
+            
+            # 1. Eliminar subcolección 'history' (Limpieza profunda)
+            # Nota: Esto se hace en lotes pequeños para evitar problemas de memoria
+            self._delete_collection_batch(doc_ref.collection('history'), batch_size=20)
+            
+            # 2. Eliminar el documento principal
+            doc_ref.delete()
+            logger.info(f"Inventory item {doc_id} and history deleted.")
+        except Exception as e:
+            logger.error(f"Error deleting inventory item {doc_id}: {e}")
+            raise e
+
+    def _delete_collection_batch(self, coll_ref, batch_size):
+        """Helper para borrar subcolecciones"""
+        docs = list(coll_ref.limit(batch_size).stream())
+        deleted = 0
+        if len(docs) > 0:
+            batch = self.db.batch()
+            for doc in docs:
+                batch.delete(doc.reference)
+            batch.commit()
+            deleted = len(docs)
+            
+        if deleted >= batch_size:
+            return self._delete_collection_batch(coll_ref, batch_size)
 
     @firestore_retry
     def get_inventory_item_details(self, doc_id):
