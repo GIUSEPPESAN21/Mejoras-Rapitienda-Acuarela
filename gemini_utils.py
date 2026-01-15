@@ -11,9 +11,6 @@ logger = logging.getLogger(__name__)
 
 class GeminiUtils:
     def __init__(self):
-        """
-        Initializes the Gemini client by finding the best available model.
-        """
         self.api_key = st.secrets.get('GEMINI_API_KEY')
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY no encontrada en los secrets de Streamlit")
@@ -22,143 +19,117 @@ class GeminiUtils:
         self.model = self._get_available_model()
 
     def _get_available_model(self):
-        """
-        Intenta inicializar el mejor modelo de Gemini disponible de la lista proporcionada.
-        """
-        # Lista de modelos priorizada, AHORA INCLUYE el modelo experimental.
         model_candidates = [
-            "gemini-2.0-flash-exp",       # Modelo experimental más reciente (prioridad 1)
-            "gemini-1.5-flash-latest",    # Versión más reciente y rápida de 1.5
-            "gemini-1.5-pro-latest",      # Versión Pro más reciente de 1.5
-            "gemini-1.5-flash",           # Modelo Flash básico
-            "gemini-1.5-pro",             # Modelo Pro básico
+            "gemini-2.0-flash-exp",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-pro-latest",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
         ]
-
         for model_name in model_candidates:
             try:
                 model = genai.GenerativeModel(model_name)
-                logger.info(f"✅ Modelo de Gemini '{model_name}' inicializado con éxito.")
+                logger.info(f"✅ Modelo '{model_name}' listo.")
                 return model
-            except google.api_core.exceptions.NotFound:
-                 logger.warning(f"⚠️ Modelo '{model_name}' no encontrado (NotFound).")
-                 continue
-            except Exception as e:
-                logger.warning(f"⚠️ Modelo '{model_name}' no disponible o no compatible: {e}")
+            except Exception:
                 continue
-
-        raise Exception("No se pudo inicializar ningún modelo de Gemini compatible de la lista.")
-
+        raise Exception("No se pudo inicializar ningún modelo de Gemini.")
 
     def generate_daily_report(self, orders: list):
         """
-        Generates a daily sales report as a Markdown string with recommendations.
+        Genera un reporte diario analizando ventas en efectivo vs fiado.
         """
         if not self.model:
-            return "### Error\nEl modelo de texto no está inicializado."
+            return "### Error\nEl modelo de IA no está activo."
         if not orders:
-            return "### Reporte Diario\nNo hubo ventas completadas hoy para generar un reporte."
+            return "### Reporte Diario\nNo hubo movimientos registrados hoy."
 
-        total_revenue = sum(o.get('price', 0) for o in orders if isinstance(o.get('price'), (int, float)))
-        total_orders = len(orders)
+        # Cálculos Financieros
+        total_sales_value = 0.0
+        cash_revenue = 0.0
+        credit_revenue = 0.0 # Fiado
+        total_transactions = len(orders)
+        
+        fiado_details = []
 
         item_sales = {}
+        
         for order in orders:
+            price = order.get('price', 0)
+            if not isinstance(price, (int, float)): price = 0
+            
+            total_sales_value += price
+            
+            # Clasificación por tipo de pago
+            payment_method = order.get('payment_method', 'efectivo')
+            if payment_method == 'fiado':
+                credit_revenue += price
+                customer = order.get('customer_name', 'Desconocido')
+                fiado_details.append(f"- {customer}: ${price:,.2f}")
+            else:
+                cash_revenue += price
+
+            # Conteo de items
             for item in order.get('ingredients', []):
                 item_name = item.get('name', 'N/A')
                 quantity = item.get('quantity', 0)
                 if isinstance(quantity, (int, float)) and quantity > 0:
                     item_sales[item_name] = item_sales.get(item_name, 0) + quantity
 
-        top_selling_items = sorted(item_sales.items(), key=lambda x: x[1], reverse=True)
+        top_selling_items = sorted(item_sales.items(), key=lambda x: x[1], reverse=True)[:10]
 
+        # Prompt Estructurado
         prompt = f"""
-        **Actúa como un analista de negocios experto para una tienda.**
+        **Rol:** Eres el Consultor Financiero Senior de 'Rapi Tienda Acuarela'.
+        
+        **Objetivo:** Generar un reporte diario de ventas crítico y estratégico.
 
-        **Fecha del Reporte:** {datetime.now(timezone.utc).strftime('%d de %B de %Y')}
+        **Datos Financieros del Día:**
+        * **Ventas Totales (Bruto):** ${total_sales_value:,.2f}
+        * **Dinero en Caja (Efectivo):** ${cash_revenue:,.2f}
+        * **Cuentas por Cobrar (Fiado):** ${credit_revenue:,.2f}
+        * **Total Transacciones:** {total_transactions}
+        
+        **Top Productos Vendidos:**
+        {chr(10).join([f"    * {name}: {qty}" for name, qty in top_selling_items])}
 
-        **Datos de Ventas del Día:**
-        * **Ingresos Totales:** ${total_revenue:,.2f}
-        * **Número de Pedidos:** {total_orders}
-        * **Artículos Vendidos (Nombre: Cantidad):**
-        """
-        for name, qty in top_selling_items:
-            prompt += f"    * {name}: {qty}\n"
+        **Detalle de Créditos (Fiado):**
+        {chr(10).join(fiado_details) if fiado_details else "    * No hubo ventas fiadas hoy."}
 
-        prompt += """
-        **Tu Tarea:**
-        Basado en los datos de ventas de hoy, escribe un reporte conciso y accionable en formato Markdown. El reporte debe incluir:
-        1.  Un **Resumen Ejecutivo** de una o dos frases.
-        2.  Una sección de **Observaciones Clave** con 2-3 puntos importantes.
-        3.  Una sección de **Recomendaciones Estratégicas** con 2-3 acciones claras.
-        4.  Al final del todo, incluye la siguiente firma:
-            
-            ---
-            *Elaborado por:*
-            **Joseph Javier Sánchez Acuña**
-            *CEO - SAVA SOFTWARE FOR ENGINEERING*
-
-        **IMPORTANTE:** Tu única salida debe ser el texto del reporte en formato Markdown. No incluyas nada más.
+        **Instrucciones de Generación:**
+        Analiza estos datos y escribe un reporte en Markdown que incluya:
+        
+        1.  **Resumen de Caja:** Compara lo que entró en efectivo vs lo que se fío. ¿Es saludable el nivel de crédito hoy?
+        2.  **Análisis de Producto:** Comenta brevemente sobre los productos estrella.
+        3.  **Alertas de Cobro:** Si hay fiados, menciona la importancia de gestionar esos cobros.
+        4.  **Recomendación Estratégica:** Una acción concreta para mejorar mañana.
+        
+        **Firma Obligatoria:**
+        ---
+        *Reporte generado por:*
+        **SAVA AI INTELLIGENCE**
+        *Rapi Tienda Acuarela System*
         """
 
         try:
             response = self.model.generate_content(prompt)
             if response and response.text:
                 return response.text
-            else:
-                logger.error("La IA no devolvió una respuesta de texto válida.")
-                return "### Error\nLa IA no devolvió una respuesta válida."
-
+            return "### Error\nLa IA no generó respuesta."
         except Exception as e:
-            logger.error(f"Error crítico durante la generación de reporte con Gemini: {e}")
-            error_message = str(e)
-            if "API key not valid" in error_message:
-                return "### Error\nLa API Key de Gemini no es válida. Verifícala en los secretos."
-            return f"### Error\nNo se pudo generar el reporte: {error_message}"
-
+            return f"### Error\nFallo en análisis IA: {str(e)}"
 
     def analyze_image(self, image_pil: Image, description: str = ""):
-        """
-        Analiza una imagen y devuelve una respuesta JSON estructurada y limpia.
-        """
-        if not self.model:
-            return json.dumps({"error": "El modelo de Gemini no está inicializado."})
-
+        # (Se mantiene igual que la versión anterior, solo retornando el JSON)
+        if not self.model: return json.dumps({"error": "Modelo inactivo."})
         try:
             prompt = f"""
-            Analiza esta imagen de un objeto de inventario.
-            Descripción adicional del sistema de detección: "{description}"
-
-            Actúa como un experto catalogador. Tu única salida debe ser un objeto JSON válido con estas claves:
-            - "elemento_identificado": (string) El nombre específico y descriptivo del objeto.
-            - "cantidad_aproximada": (integer) El número de unidades que ves. Si es solo uno, pon 1.
-            - "estado_condicion": (string) La condición aparente (ej: "Nuevo en empaque", "Usado", "Componente").
-            - "caracteristicas_distintivas": (string) Lista separada por comas de características visuales clave.
-            - "posible_categoria_de_inventario": (string) La categoría más lógica (ej: "Electrónicos", "Ferretería").
-            - "marca_modelo_sugerido": (string) Si es visible, marca y/o modelo (ej: "Sony XM4"). Si no, "No visible".
-
-            IMPORTANTE: Responde solo con el objeto JSON válido, sin texto adicional ni marcas ```json.
+            Analiza esta imagen de inventario. Contexto: "{description}"
+            Salida JSON estricta con claves: elemento_identificado, cantidad_aproximada, estado_condicion, caracteristicas_distintivas, posible_categoria_de_inventario, marca_modelo_sugerido.
             """
-            
-            generation_config = {
-                "response_mime_type": "application/json",
-            }
+            generation_config = {"response_mime_type": "application/json"}
             response = self.model.generate_content([prompt, image_pil], generation_config=generation_config)
-
-            if response and response.text:
-                report_data = json.loads(response.text)
-                if "elemento_identificado" in report_data:
-                    return response.text
-                else:
-                    logger.warning("El JSON de análisis de imagen está incompleto.")
-                    return json.dumps({"error": "JSON de imagen incompleto.", "raw_response": response.text})
-            else:
-                return json.dumps({"error": "Respuesta de imagen inválida."})
-
-        except json.JSONDecodeError:
-            raw_response = response.text if 'response' in locals() and hasattr(response, 'text') else "No response text available."
-            logger.error("La IA no devolvió un formato JSON válido para la imagen.")
-            return json.dumps({"error": "JSON de imagen mal formado.", "raw_response": raw_response})
+            if response and response.text: return response.text
+            return json.dumps({"error": "Respuesta vacía."})
         except Exception as e:
-            logger.error(f"Error crítico durante el análisis de imagen con Gemini: {e}")
-            return json.dumps({"error": f"No se pudo contactar al servicio de IA para imagen: {str(e)}"})
-
+            return json.dumps({"error": str(e)})
