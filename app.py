@@ -1115,5 +1115,3 @@ elif st.session_state.page == "🏢 Acerca de SAVA":
         st.info("**Jaime Eduardo Aragon Campo**\n\n*Director de Operaciones*")
     with c3_cof:
         st.info("**Joseph Javier Sanchez Acuña**\n\n*Director de Proyecto*")
-
-}
