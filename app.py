@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 HI-DRIVE: Sistema Avanzado de Gestión de Inventario con IA
-Versión 2.9.0 - Rapi Tienda Acuarela (Feature: Excel Export)
+Versión 2.9.1 - Rapi Tienda Acuarela (Feature: Full DB Export)
 """
 import streamlit as st
 from PIL import Image
@@ -895,7 +895,7 @@ elif st.session_state.page == "📊 Analítica":
         st.info("No hay datos suficientes para generar analíticas.")
     else:
         # --- TAB4 AÑADIDA PARA EXPORTACIÓN ---
-        tab1, tab2, tab3, tab4 = st.tabs(["💰 Rendimiento Financiero", "🔄 Rotación de Inventario", "📈 Predicción de Demanda", "📥 Exportar Datos"])
+        tab1, tab2, tab3, tab4 = st.tabs(["💰 Rendimiento Financiero", "🔄 Rotación de Inventario", "📈 Predicción de Demanda", "📥 Exportar Base de Datos"])
 
         # Tab 1: Financial Performance
         with tab1:
@@ -1061,11 +1061,11 @@ elif st.session_state.page == "📊 Analítica":
         with tab4:
             st.subheader("Descarga Masiva de Base de Datos")
             st.markdown("""
-            Esta herramienta te permite descargar toda la información del sistema en un único archivo Excel con múltiples hojas:
-            - **Inventario Actual**: Estado actual de stock y precios.
-            - **Historial Ventas**: Resumen de tickets de venta.
-            - **Detalle Ítems Vendidos**: Desglose producto por producto de cada venta (ideal para tablas dinámicas).
-            - **Proveedores**: Lista de contactos.
+            Esta herramienta genera un Excel con la estructura exacta de tus colecciones de base de datos:
+            - **inventory**: Tu inventario completo.
+            - **orders**: Todas las ventas (completadas, en proceso, etc.).
+            - **orders_items**: Detalle de productos por cada orden.
+            - **suppliers**: Lista de proveedores.
             """)
             
             col_down_1, col_down_2 = st.columns([1, 2])
@@ -1073,73 +1073,76 @@ elif st.session_state.page == "📊 Analítica":
                 if st.button("📥 Generar Excel Maestro", type="primary", use_container_width=True):
                     with st.spinner("Compilando datos y generando archivo Excel..."):
                         try:
-                            # 1. Preparar DataFrame de Inventario
+                            # 1. Preparar DataFrame de Inventory
                             df_inventory = pd.DataFrame(all_inventory_items)
                             
-                            # 2. Preparar DataFrame de Proveedores
+                            # 2. Preparar DataFrame de Suppliers
                             df_suppliers = pd.DataFrame(suppliers_list)
                             
-                            # 3. Preparar DataFrame de Ventas (Resumen General)
+                            # 3. Preparar DataFrames de Orders (TODAS, status=None)
+                            all_orders_raw = firebase.get_orders(status=None)
+                            
                             sales_summary_data = []
-                            for o in completed_orders:
-                                # Limpiar timestamps para que Excel no de error
-                                ts = o.get('timestamp')
-                                ts_str = ts.strftime('%Y-%m-%d %H:%M:%S') if ts else ''
-                                
-                                sales_summary_data.append({
-                                    'ID Venta': o.get('id'),
-                                    'Fecha': ts_str,
-                                    'Título': o.get('title'),
-                                    'Total ($)': o.get('price'),
-                                    'Método Pago': o.get('payment_method', 'efectivo'),
-                                    'Cliente': o.get('customer_name', ''),
-                                    'Estado': o.get('status')
-                                })
-                            df_sales_summary = pd.DataFrame(sales_summary_data)
-
-                            # 4. Preparar DataFrame de Ventas (Detalle por Ítem - Útil para Tablas Dinámicas)
                             sales_detailed_data = []
-                            for o in completed_orders:
-                                ts = o.get('timestamp')
-                                ts_str = ts.strftime('%Y-%m-%d %H:%M:%S') if ts else ''
+
+                            for o in all_orders_raw:
+                                # Limpiar timestamps
+                                ts = o.get('timestamp_obj') # Usamos el objeto ya procesado por get_orders si existe
+                                if not ts: # Fallback
+                                    ts = o.get('timestamp')
+                                ts_str = ts.strftime('%Y-%m-%d %H:%M:%S') if ts and isinstance(ts, (datetime, pd.Timestamp)) else str(ts)
                                 
+                                # Resumen de Orders
+                                sales_summary_data.append({
+                                    'id': o.get('id'),
+                                    'timestamp': ts_str,
+                                    'title': o.get('title'),
+                                    'price': o.get('price'),
+                                    'payment_method': o.get('payment_method', 'efectivo'),
+                                    'customer_name': o.get('customer_name', ''),
+                                    'status': o.get('status'),
+                                    'completed_at': str(o.get('completed_at', ''))
+                                })
+
+                                # Detalle de Orders Items
                                 for item in o.get('ingredients', []):
                                     sales_detailed_data.append({
-                                        'ID Venta': o.get('id'),
-                                        'Fecha': ts_str,
-                                        'Producto': item.get('name'),
-                                        'Cantidad': item.get('quantity'),
-                                        'Precio Unitario Venta': item.get('sale_price'),
-                                        'Costo Unitario Compra': item.get('purchase_price', 0),
-                                        'Subtotal Venta': item.get('sale_price', 0) * item.get('quantity', 0),
-                                        'Cliente': o.get('customer_name', '')
+                                        'order_id': o.get('id'),
+                                        'order_date': ts_str,
+                                        'item_name': item.get('name'),
+                                        'quantity': item.get('quantity'),
+                                        'sale_price': item.get('sale_price'),
+                                        'purchase_price': item.get('purchase_price', 0),
+                                        'subtotal': item.get('sale_price', 0) * item.get('quantity', 0)
                                     })
-                            df_sales_detail = pd.DataFrame(sales_detailed_data)
 
-                            # 5. Escribir al buffer de memoria
+                            df_orders = pd.DataFrame(sales_summary_data)
+                            df_orders_items = pd.DataFrame(sales_detailed_data)
+
+                            # 5. Escribir al buffer de memoria con nombres de hoja EXACTOS
                             output = io.BytesIO()
                             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                                 if not df_inventory.empty:
-                                    df_inventory.to_excel(writer, sheet_name='Inventario Actual', index=False)
-                                if not df_sales_summary.empty:
-                                    df_sales_summary.to_excel(writer, sheet_name='Historial Ventas', index=False)
-                                if not df_sales_detail.empty:
-                                    df_sales_detail.to_excel(writer, sheet_name='Detalle Ítems Vendidos', index=False)
+                                    df_inventory.to_excel(writer, sheet_name='inventory', index=False)
+                                if not df_orders.empty:
+                                    df_orders.to_excel(writer, sheet_name='orders', index=False)
+                                if not df_orders_items.empty:
+                                    df_orders_items.to_excel(writer, sheet_name='orders_items', index=False)
                                 if not df_suppliers.empty:
-                                    df_suppliers.to_excel(writer, sheet_name='Proveedores', index=False)
+                                    df_suppliers.to_excel(writer, sheet_name='suppliers', index=False)
                             
                             output.seek(0)
                             
-                            # 6. Guardar en session state para que el botón de descarga aparezca y persista
+                            # 6. Guardar en session state
                             st.session_state['excel_buffer'] = output
-                            st.toast("Archivo Excel generado correctamente.", icon="✅")
+                            st.toast("Archivo Excel generado con estructura de base de datos.", icon="✅")
 
                         except Exception as e:
                             st.error(f"Error al generar el Excel: {e}")
 
             # Mostrar botón de descarga si el buffer existe en sesión
             if 'excel_buffer' in st.session_state:
-                file_name = f"SAVA_Reporte_Completo_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+                file_name = f"SAVA_DB_Export_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
                 st.download_button(
                     label="⬇️ Click aquí para descargar el archivo",
                     data=st.session_state['excel_buffer'],
