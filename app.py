@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 HI-DRIVE: Sistema Avanzado de Gestión de Inventario con IA
-Versión 2.9.1 - Rapi Tienda Acuarela (Feature: Full DB Export)
+Versión 2.9.2 - Rapi Tienda Acuarela (Features: Vuelto & Reporte Exacto)
 """
 import streamlit as st
 from PIL import Image
@@ -10,7 +10,7 @@ import plotly.express as px
 import json
 from datetime import datetime, timedelta, timezone
 import numpy as np
-import io  # <--- IMPORTACIÓN NECESARIA PARA EXCEL EN MEMORIA
+import io  
 
 # --- Importaciones de utilidades y modelos ---
 try:
@@ -26,7 +26,6 @@ except ImportError as e:
 
 
 # --- CONFIGURACIÓN DE PÁGINA Y ESTILOS ---
-# CORRECCIÓN: URL limpia sin formato markdown
 st.set_page_config(
     page_title="Rapi Tienda Acuarela | Sistema SAVA",
     page_icon="https://github.com/GIUSEPPESAN21/LOGO-SAVA/blob/main/LOGO%20COLIBRI.png?raw=true",
@@ -79,12 +78,10 @@ def init_session_state():
         'page': "🏠 Inicio", 'order_items': [],
         'editing_item_id': None, 'scanned_item_data': None,
         'usb_scan_result': None, 'usb_sale_items': [],
-        # Variables para el flujo seguro de 2 pasos
         'add_sku_input': "", 
         'new_item_name': "", 'new_item_qty': 1, 
         'new_item_purchase': 0.0, 'new_item_sale': 0.0, 'new_item_alert': 0,
         'new_item_supplier': "",
-        # Flag Centinela para limpieza segura
         'should_clear_inventory_form': False
     }
     for key, value in defaults.items():
@@ -125,14 +122,9 @@ def send_whatsapp_alert(message):
 
 # --- FUNCIONES CALLBACK & HELPERS ---
 def set_clear_form_flag():
-    """Callback simple para activar la bandera de limpieza."""
     st.session_state.should_clear_inventory_form = True
 
 def save_new_item_callback(supplier_map, current_sku):
-    """
-    Intenta guardar el ítem y activa la bandera de limpieza si tiene éxito.
-    """
-    # Leer valores de session_state
     name = st.session_state.get('new_item_name')
     quantity = st.session_state.get('new_item_qty')
     purchase_price = st.session_state.get('new_item_purchase')
@@ -160,7 +152,6 @@ def save_new_item_callback(supplier_map, current_sku):
     try:
         firebase.save_inventory_item(data, current_sku, is_new=True)
         st.toast(f"✅ ¡Producto '{name}' guardado correctamente!", icon="✅")
-        # Activar bandera para que el formulario se limpie en la PRÓXIMA renderización
         st.session_state.should_clear_inventory_form = True
     except Exception as add_e:
         st.toast(f"❌ Error al guardar: {add_e}", icon="❌")
@@ -169,7 +160,6 @@ def save_new_item_callback(supplier_map, current_sku):
 # --- NAVEGACIÓN PRINCIPAL (SIDEBAR) ---
 col1, col2, col3 = st.sidebar.columns([1,6,1])
 with col2:
-    # CORRECCIÓN: URL limpia sin formato markdown
     st.image("https://github.com/GIUSEPPESAN21/LOGO-SAVA/blob/main/LOGO%20COLIBRI.png?raw=true", width=150)
 
 st.sidebar.markdown('<h1 style="text-align: center; font-size: 2.0rem; margin-top: -10px;">Rapi Tienda<br>Acuarela</h1>', unsafe_allow_html=True)
@@ -191,13 +181,12 @@ for page_name, icon in PAGES.items():
         st.session_state.editing_item_id = None
         st.session_state.scanned_item_data = None
         st.session_state.usb_scan_result = None
-        # Limpiar al cambiar de página
         st.session_state.add_sku_input = ""
         st.session_state.should_clear_inventory_form = False
         st.rerun()
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("<small>© 2025 SAVA & Rapi Tienda Acuarela. Todos los derechos reservados.</small>", unsafe_allow_html=True)
+st.sidebar.markdown("<small>© 2026 SAVA & Rapi Tienda Acuarela. Todos los derechos reservados.</small>", unsafe_allow_html=True)
 
 # --- RENDERIZADO DE PÁGINAS ---
 if st.session_state.page != "🏠 Inicio":
@@ -208,7 +197,6 @@ if st.session_state.page != "🏠 Inicio":
 if st.session_state.page == "🏠 Inicio":
     col_img, col_title = st.columns([1, 5])
     with col_img:
-        # CORRECCIÓN: URL limpia sin formato markdown
         st.image("https://github.com/GIUSEPPESAN21/LOGO-SAVA/blob/main/LOGO%20COLIBRI.png?raw=true", width=130)
     with col_title:
         st.markdown('<h1 class="main-header" style="text-align: left; margin-top: 20px;">Bienvenido a Rapi Tienda Acuarela</h1>', unsafe_allow_html=True)
@@ -291,7 +279,6 @@ elif st.session_state.page == "🛰️ Escáner USB":
                 elif submitted and not barcode_input:
                     st.warning("Por favor, ingresa o escanea un código de barras.")
 
-
         with col2:
             st.subheader("Resultado del Escaneo")
             result = st.session_state.get('usb_scan_result')
@@ -327,12 +314,10 @@ elif st.session_state.page == "🛰️ Escáner USB":
                         except Exception as update_e:
                              st.error(f"Error al actualizar: {update_e}")
 
-
             elif result['status'] == 'not_found':
                 barcode = result['barcode']
                 st.warning(f"⚠️ El código '{barcode}' no existe. Por favor, regístralo.")
 
-                # Se cambió a clear_on_submit=False para evitar borrado prematuro
                 with st.form("create_from_usb_scan_form", clear_on_submit=False):
                     st.markdown(f"**Código de Barras:** `{barcode}`")
                     name = st.text_input("Nombre del Producto")
@@ -352,7 +337,7 @@ elif st.session_state.page == "🛰️ Escáner USB":
                             try:
                                 firebase.save_inventory_item(data, barcode, is_new=True, details="Creado vía Escáner USB.")
                                 st.success(f"¡Producto '{name}' guardado!")
-                                st.session_state.usb_scan_result = None # Limpia resultado
+                                st.session_state.usb_scan_result = None 
                                 st.rerun()
                             except Exception as create_e:
                                 st.error(f"Error al guardar: {create_e}")
@@ -377,7 +362,6 @@ elif st.session_state.page == "🛰️ Escáner USB":
                 elif submitted and not barcode_input:
                      st.warning("Por favor, escanea un código de producto.")
 
-
         with col2:
             st.subheader("Detalle de la Venta Actual")
             if not st.session_state.usb_sale_items:
@@ -400,15 +384,24 @@ elif st.session_state.page == "🛰️ Escáner USB":
                 st.dataframe(pd.DataFrame(df_items), use_container_width=True, hide_index=True)
                 st.markdown(f"### Total Venta: `${total_sale_price:,.2f}`")
 
-                # --- NUEVA SECCIÓN: FIADO ---
+                # --- NUEVA SECCIÓN: FIADO Y CÁLCULO DE VUELTO ---
                 st.markdown("#### Método de Pago")
                 is_fiado = st.checkbox("¿Marcar como FIADO (Crédito)?", key="usb_fiado_check")
                 customer_name = "Cliente General"
+                cash_received_usb = 0.0
                 
                 if is_fiado:
                     customer_name = st.text_input("Nombre del Cliente (Deudor)", placeholder="Ej: Juan Pérez")
                     if not customer_name:
                         st.caption("⚠️ Debes ingresar un nombre para fiar.")
+                else:
+                    cash_received_usb = st.number_input("Efectivo Recibido ($)", min_value=0.0, step=1000.0, format="%.2f", key="usb_cash_received")
+                    if cash_received_usb > 0:
+                        change_usb = cash_received_usb - total_sale_price
+                        if change_usb >= 0:
+                            st.success(f"💰 **Cambio a devolver:** ${change_usb:,.2f}")
+                        else:
+                            st.error(f"⚠️ Faltan ${abs(change_usb):,.2f} para completar el pago.")
 
                 c1, c2 = st.columns(2)
                 btn_label = "✅ Finalizar Venta" if not is_fiado else "📝 Registrar Fiado"
@@ -416,6 +409,8 @@ elif st.session_state.page == "🛰️ Escáner USB":
                 if c1.button(btn_label, type="primary", width='stretch'):
                     if is_fiado and not customer_name:
                          st.error("Error: Falta el nombre del cliente para fiar.")
+                    elif not is_fiado and cash_received_usb > 0 and cash_received_usb < total_sale_price:
+                         st.error("Error: El efectivo recibido es menor al total de la venta.")
                     else:
                         sale_id = f"VentaDirecta-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}" 
                         
@@ -425,7 +420,6 @@ elif st.session_state.page == "🛰️ Escáner USB":
                         }
 
                         try:
-                            # Se pasa payment_info a la función
                             success, msg, alerts = firebase.process_direct_sale(st.session_state.usb_sale_items, sale_id, payment_info)
                             if success:
                                 st.success(msg)
@@ -437,7 +431,6 @@ elif st.session_state.page == "🛰️ Escáner USB":
                                 st.error(msg)
                         except Exception as sale_e:
                             st.error(f"Error al procesar la venta: {sale_e}")
-
 
                 if c2.button("❌ Cancelar Venta", width='stretch'):
                     st.session_state.usb_sale_items = []
@@ -548,8 +541,6 @@ elif st.session_state.page == "📦 Inventario":
         with tab2:
             st.subheader("Añadir Nuevo Artículo al Inventario")
             
-            # --- MANEJO DE BANDERA CENTINELA (FIX ERROR MODIFICACIÓN) ---
-            # Si la bandera está activa, limpiamos el estado ANTES de renderizar los widgets
             if st.session_state.get('should_clear_inventory_form'):
                 st.session_state.add_sku_input = "" 
                 st.session_state.new_item_name = ""
@@ -557,18 +548,15 @@ elif st.session_state.page == "📦 Inventario":
                 st.session_state.new_item_purchase = 0.0
                 st.session_state.new_item_sale = 0.0
                 st.session_state.new_item_alert = 0
-                st.session_state.new_item_supplier = "" # Key del selectbox
+                st.session_state.new_item_supplier = ""
                 st.session_state.should_clear_inventory_form = False
 
-            # --- PASO 1: ESCANEO DE IDENTIFICACIÓN ---
             st.markdown("##### 1️⃣ Paso 1: Escanea o Escribe el Código (SKU)")
             st.info("Usa tu lector de código de barras aquí. Si el producto no existe, podrás crearlo en el paso siguiente.")
             
-            # Usamos un text_input aislado.
             sku_candidate = st.text_input("Código del Producto", key="add_sku_input", placeholder="Escanea aquí...")
 
             if sku_candidate:
-                # Verificar si existe en la base de datos
                 try:
                     existing_item = firebase.get_inventory_item_details(sku_candidate)
                     
@@ -577,23 +565,20 @@ elif st.session_state.page == "📦 Inventario":
                         col_ex_1, col_ex_2 = st.columns(2)
                         if col_ex_1.button("✏️ Editar este producto existente", width='stretch'):
                             st.session_state.editing_item_id = sku_candidate
-                            st.session_state.page = "📦 Inventario" # Recargar para entrar en modo edición
+                            st.session_state.page = "📦 Inventario"
                             st.rerun()
-                        # FIX: Botón de limpiar usa callback para evitar modificar widget ya instanciado
                         if col_ex_2.button("🔄 Limpiar y Escanear Otro", width='stretch', on_click=set_clear_form_flag):
-                            pass # La limpieza ocurre al recargar gracias al flag
+                            pass 
                     else:
                         st.success(f"✨ ID Disponible: **{sku_candidate}**. Completa los detalles abajo:")
                         st.markdown("---")
                         
-                        # --- PASO 2: FORMULARIO DE CREACIÓN ---
                         st.markdown("##### 2️⃣ Paso 2: Detalles del Nuevo Producto")
                         try:
                             suppliers = firebase.get_all_suppliers()
                             supplier_map = {s.get('name', f"ID: {s.get('id')}"): s.get('id') for s in suppliers}
                             supplier_names = [""] + list(supplier_map.keys())
 
-                            # Formulario sin clear_on_submit, limpieza controlada por bandera
                             with st.form("create_new_item_step2", clear_on_submit=False):
                                 name = st.text_input("Nombre del Artículo", key="new_item_name")
                                 quantity = st.number_input("Cantidad Inicial", min_value=0, step=1, key="new_item_qty")
@@ -601,10 +586,8 @@ elif st.session_state.page == "📦 Inventario":
                                 sale_price = st.number_input("Precio de Venta ($)", min_value=0.0, format="%.2f", key="new_item_sale")
                                 min_stock_alert = st.number_input("Umbral de Alerta", min_value=0, step=1, key="new_item_alert")
                                 
-                                # AÑADIDA KEY al selectbox para leerlo en el callback
                                 selected_supplier_name = st.selectbox("Proveedor", supplier_names, key="new_item_supplier")
 
-                                # Callback vinculado al clic para guardado seguro
                                 st.form_submit_button(
                                     "💾 Guardar Producto", 
                                     type="primary", 
@@ -781,7 +764,6 @@ elif st.session_state.page == "🛒 Ventas":
                  st.session_state.order_items = updated_items_from_editor
                  st.rerun()
 
-
             st.metric("Precio Total de la Venta", f"${total_price:,.2f}")
 
             try:
@@ -791,12 +773,22 @@ elif st.session_state.page == "🛒 Ventas":
                 st.warning(f"No se pudo obtener el contador de ventas: {count_e}")
                 default_title = "Nueva Venta"
 
-            # --- NUEVA SECCIÓN: FIADO EN VENTA MANUAL ---
+            # --- NUEVA SECCIÓN: FIADO Y CÁLCULO DE VUELTO EN VENTA MANUAL ---
             st.write("---")
             is_credit = st.checkbox("Venta a Crédito (Fiado)", key="man_fiado")
             client = "Cliente General"
+            cash_received_man = 0.0
+
             if is_credit:
                 client = st.text_input("Nombre del Cliente (Deudor)", key="man_client", placeholder="Ej: Juan Pérez")
+            else:
+                cash_received_man = st.number_input("Efectivo Recibido ($)", min_value=0.0, step=1000.0, format="%.2f", key="man_cash_received")
+                if cash_received_man > 0:
+                    change_man = cash_received_man - total_price
+                    if change_man >= 0:
+                        st.success(f"💰 **Cambio a devolver:** ${change_man:,.2f}")
+                    else:
+                        st.error(f"⚠️ Faltan ${abs(change_man):,.2f} para completar el pago.")
 
             with st.form("order_form"):
                 title = st.text_input("Nombre de la Venta (opcional)", placeholder=default_title)
@@ -807,6 +799,8 @@ elif st.session_state.page == "🛒 Ventas":
                         st.warning("No hay artículos en la venta.")
                     elif is_credit and not client:
                          st.error("Error: Falta el nombre del cliente para fiar.")
+                    elif not is_credit and cash_received_man > 0 and cash_received_man < total_price:
+                         st.error("Error: El efectivo recibido es menor al total de la venta.")
                     else:
                         ingredients_for_db = []
                         valid_order = True
@@ -841,7 +835,6 @@ elif st.session_state.page == "🛒 Ventas":
                                 st.rerun() 
                             except Exception as create_order_e:
                                 st.error(f"Error al crear la venta: {create_order_e}")
-
 
     st.markdown("---")
     st.subheader("⏳ Ventas en Proceso")
@@ -894,7 +887,6 @@ elif st.session_state.page == "📊 Analítica":
     if not completed_orders and not all_inventory_items:
         st.info("No hay datos suficientes para generar analíticas.")
     else:
-        # --- TAB4 AÑADIDA PARA EXPORTACIÓN ---
         tab1, tab2, tab3, tab4 = st.tabs(["💰 Rendimiento Financiero", "🔄 Rotación de Inventario", "📈 Predicción de Demanda", "📥 Exportar Base de Datos"])
 
         # Tab 1: Financial Performance
@@ -1057,7 +1049,7 @@ elif st.session_state.page == "📊 Analítica":
                             except Exception as e:
                                 st.error(f"No se pudo generar la predicción: {e}")
 
-        # --- NUEVA PESTAÑA: EXPORTACIÓN DE DATOS ---
+        # Tab 4: Exportación de Datos
         with tab4:
             st.subheader("Descarga Masiva de Base de Datos")
             st.markdown("""
@@ -1073,26 +1065,19 @@ elif st.session_state.page == "📊 Analítica":
                 if st.button("📥 Generar Excel Maestro", type="primary", use_container_width=True):
                     with st.spinner("Compilando datos y generando archivo Excel..."):
                         try:
-                            # 1. Preparar DataFrame de Inventory
                             df_inventory = pd.DataFrame(all_inventory_items)
-                            
-                            # 2. Preparar DataFrame de Suppliers
                             df_suppliers = pd.DataFrame(suppliers_list)
-                            
-                            # 3. Preparar DataFrames de Orders (TODAS, status=None)
                             all_orders_raw = firebase.get_orders(status=None)
                             
                             sales_summary_data = []
                             sales_detailed_data = []
 
                             for o in all_orders_raw:
-                                # Limpiar timestamps
-                                ts = o.get('timestamp_obj') # Usamos el objeto ya procesado por get_orders si existe
-                                if not ts: # Fallback
+                                ts = o.get('timestamp_obj') 
+                                if not ts: 
                                     ts = o.get('timestamp')
                                 ts_str = ts.strftime('%Y-%m-%d %H:%M:%S') if ts and isinstance(ts, (datetime, pd.Timestamp)) else str(ts)
                                 
-                                # Resumen de Orders
                                 sales_summary_data.append({
                                     'id': o.get('id'),
                                     'timestamp': ts_str,
@@ -1104,7 +1089,6 @@ elif st.session_state.page == "📊 Analítica":
                                     'completed_at': str(o.get('completed_at', ''))
                                 })
 
-                                # Detalle de Orders Items
                                 for item in o.get('ingredients', []):
                                     sales_detailed_data.append({
                                         'order_id': o.get('id'),
@@ -1119,7 +1103,6 @@ elif st.session_state.page == "📊 Analítica":
                             df_orders = pd.DataFrame(sales_summary_data)
                             df_orders_items = pd.DataFrame(sales_detailed_data)
 
-                            # 5. Escribir al buffer de memoria con nombres de hoja EXACTOS
                             output = io.BytesIO()
                             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                                 if not df_inventory.empty:
@@ -1132,15 +1115,12 @@ elif st.session_state.page == "📊 Analítica":
                                     df_suppliers.to_excel(writer, sheet_name='suppliers', index=False)
                             
                             output.seek(0)
-                            
-                            # 6. Guardar en session state
                             st.session_state['excel_buffer'] = output
                             st.toast("Archivo Excel generado con estructura de base de datos.", icon="✅")
 
                         except Exception as e:
                             st.error(f"Error al generar el Excel: {e}")
 
-            # Mostrar botón de descarga si el buffer existe en sesión
             if 'excel_buffer' in st.session_state:
                 file_name = f"SAVA_DB_Export_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
                 st.download_button(
@@ -1153,22 +1133,82 @@ elif st.session_state.page == "📊 Analítica":
 
 
 elif st.session_state.page == "📈 Reporte Diario":
-    st.info("Genera un reporte de ventas y recomendaciones para el día de hoy utilizando IA.")
+    st.subheader("📊 Reporte Diario de Ventas")
+    st.info("Resumen exacto de las ventas de hoy y los productos vendidos.")
 
-    if st.button("🚀 Generar Reporte de Hoy", type="primary", width='stretch'):
-        with st.spinner("🧠 La IA está analizando las ventas de hoy y preparando tu reporte..."):
-            try:
-                today_utc = datetime.now(timezone.utc).date()
-                start_of_day = datetime(today_utc.year, today_utc.month, today_utc.day, tzinfo=timezone.utc)
-                end_of_day = start_of_day + timedelta(days=1)
+    try:
+        today_utc = datetime.now(timezone.utc).date()
+        start_of_day = datetime(today_utc.year, today_utc.month, today_utc.day, tzinfo=timezone.utc)
+        end_of_day = start_of_day + timedelta(days=1)
 
-                completed_orders_today = firebase.get_orders_in_date_range(start_of_day, end_of_day)
+        completed_orders_today = firebase.get_orders_in_date_range(start_of_day, end_of_day)
 
-                report_markdown = gemini.generate_daily_report(completed_orders_today)
-                st.markdown(report_markdown, unsafe_allow_html=True)
+        if not completed_orders_today:
+            st.warning(f"No hay ventas registradas para hoy ({today_utc.strftime('%d/%m/%Y')}).")
+        else:
+            # Calcular totales
+            total_revenue = sum(o.get('price', 0) for o in completed_orders_today)
+            total_cash = sum(o.get('price', 0) for o in completed_orders_today if o.get('payment_method') != 'fiado')
+            total_credit = sum(o.get('price', 0) for o in completed_orders_today if o.get('payment_method') == 'fiado')
+            
+            col1, col2, col3 = st.columns(3)
+            col1.metric("💰 Total Vendido", f"${total_revenue:,.2f}")
+            col2.metric("💵 Recibido en Efectivo", f"${total_cash:,.2f}")
+            col3.metric("📝 Total Fiado", f"${total_credit:,.2f}")
+            
+            st.markdown("---")
+            st.subheader("📦 Productos Vendidos Hoy")
+            
+            # Consolidar productos vendidos
+            items_sold = {}
+            for order in completed_orders_today:
+                for item in order.get('ingredients', []):
+                    name = item.get('name', 'N/A')
+                    qty = item.get('quantity', 0)
+                    sale_price = item.get('sale_price', 0.0)
+                    
+                    if name in items_sold:
+                        items_sold[name]['Cantidad'] += qty
+                        items_sold[name]['Subtotal'] += (qty * sale_price)
+                    else:
+                        items_sold[name] = {
+                            'Producto': name,
+                            'Cantidad': qty,
+                            'Precio Unit.': sale_price,
+                            'Subtotal': (qty * sale_price)
+                        }
+            
+            if items_sold:
+                df_items = pd.DataFrame(list(items_sold.values()))
+                df_items = df_items.sort_values(by='Cantidad', ascending=False)
+                
+                st.dataframe(
+                    df_items, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "Precio Unit.": st.column_config.NumberColumn(format="$%.2f"),
+                        "Subtotal": st.column_config.NumberColumn(format="$%.2f")
+                    }
+                )
+                
+                # Generar Excel para descargar
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_items.to_excel(writer, sheet_name='Productos_Vendidos', index=False)
+                output.seek(0)
+                
+                st.download_button(
+                    label="⬇️ Descargar Reporte de Hoy (Excel)",
+                    data=output,
+                    file_name=f"Reporte_Diario_{today_utc.strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                    use_container_width=True
+                )
 
-            except Exception as e:
-                st.error(f"Ocurrió un error general al generar el reporte: {e}")
+    except Exception as e:
+        st.error(f"Error al generar el reporte diario: {e}")
 
 
 elif st.session_state.page == "🏢 Acerca de SAVA":
