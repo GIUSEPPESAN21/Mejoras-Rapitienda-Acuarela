@@ -27,11 +27,8 @@ class GeminiUtils:
         """
         # Lista de modelos priorizada, AHORA INCLUYE el modelo experimental.
         model_candidates = [
-            "gemini-2.0-flash-exp",       # Modelo experimental más reciente (prioridad 1)
-            "gemini-1.5-flash-latest",    # Versión más reciente y rápida de 1.5
-            "gemini-1.5-pro-latest",      # Versión Pro más reciente de 1.5
-            "gemini-1.5-flash",           # Modelo Flash básico
-            "gemini-1.5-pro",             # Modelo Pro básico
+            "gemini-flash-latest",      # Alias oficial de Google: siempre apunta al Flash vigente
+            "gemini-flash-lite-latest", # Alias oficial: Flash-Lite vigente (fallback)
         ]
 
         for model_name in model_candidates:
